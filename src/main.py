@@ -1,9 +1,11 @@
-"""Этап 1. Минимальный CLI-прототип визуализатора графа зависимостей."""
+"""Визуализатор графа зависимостей: CLI и получение данных."""
 
 import argparse
 import os
 import re
 import sys
+
+from src import pypi
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -91,30 +93,38 @@ def validate_config(args):
     validate_depth(args.depth)
 
 
-def print_config(args):
-    """Вывести все параметры пользователя в формате ключ-значение."""
-    params = {
-        "package": args.package,
-        "repo": args.repo,
-        "repo_mode": args.repo_mode,
-        "output": args.output,
-        "depth": args.depth,
-        "filter": args.filter,
-    }
-    for key, value in params.items():
-        print(f"{key}: {value}")
+def print_dependencies(package, dependencies):
+    """Вывести прямые зависимости пакета."""
+    print(f"Прямые зависимости пакета {package}:")
+    if not dependencies:
+        print("  (нет зависимостей)")
+    for name in dependencies:
+        print(f"  {name}")
+
+
+def run(args):
+    """Получить и вывести зависимости; вернуть код завершения."""
+    if args.repo_mode == REPO_MODE_TEST:
+        print("Ошибка: режим test будет добавлен на этапе 3", file=sys.stderr)
+        return EXIT_ERROR
+    try:
+        dependencies = pypi.get_dependencies(args.repo, args.package)
+    except pypi.RepoError as error:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        return EXIT_ERROR
+    print_dependencies(args.package, dependencies)
+    return EXIT_OK
 
 
 def main(argv=None):
-    """Точка входа: разобрать, проверить и вывести параметры."""
+    """Точка входа: разобрать, проверить параметры и получить данные."""
     args = build_parser().parse_args(argv)
     try:
         validate_config(args)
     except ConfigError as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return EXIT_ERROR
-    print_config(args)
-    return EXIT_OK
+    return run(args)
 
 
 if __name__ == "__main__":
