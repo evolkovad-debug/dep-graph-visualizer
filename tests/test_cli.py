@@ -3,6 +3,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from src import main as cli
 
@@ -65,7 +66,8 @@ class MainTests(unittest.TestCase):
     def test_success(self):
         """Корректные параметры дают код 0."""
         argv = ["--package", "requests", "--repo", "https://pypi.org/pypi"]
-        self.assertEqual(cli.main(argv), cli.EXIT_OK)
+        with mock.patch("src.pypi.get_dependencies", return_value=[]):
+            self.assertEqual(cli.main(argv), cli.EXIT_OK)
 
     def test_error(self):
         """Некорректные параметры дают код ошибки."""
