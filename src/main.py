@@ -1,11 +1,13 @@
-"""Визуализатор графа зависимостей: CLI и получение данных."""
+"""Визуализатор графа зависимостей: командная строка и вывод."""
 
 import argparse
+import functools
 import os
 import re
 import sys
 
-from src import pypi
+from src import pypi, testrepo
+from src.graph import GraphBuilder
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -93,31 +95,44 @@ def validate_config(args):
     validate_depth(args.depth)
 
 
-def print_dependencies(package, dependencies):
-    """Вывести прямые зависимости пакета."""
-    print(f"Прямые зависимости пакета {package}:")
-    if not dependencies:
-        print("  (нет зависимостей)")
-    for name in dependencies:
-        print(f"  {name}")
+def make_source(args):
+    """Вернуть функцию «имя пакета -> список его зависимостей»."""
+    if args.repo_mode == REPO_MODE_TEST:
+        repo = testrepo.load_repo(args.repo)
+        if args.package not in repo:
+            raise pypi.RepoError(f"пакет {args.package} не описан в файле")
+        return lambda name: repo.get(name, [])
+    return functools.lru_cache(maxsize=None)(
+        lambda name: pypi.get_dependencies(args.repo, name)
+    )
+
+
+def print_graph(package, graph, cycles):
+    """Вывести граф зависимостей и найденные циклы."""
+    print(f"Граф зависимостей пакета {package}:")
+    for name, dependencies in graph.items():
+        targets = ", ".join(dependencies) or "(нет зависимостей)"
+        print(f"  {name} -> {targets}")
+    if cycles:
+        print("Обнаружены циклические зависимости:")
+    for cycle in cycles:
+        print("  " + " -> ".join(cycle))
 
 
 def run(args):
-    """Получить и вывести зависимости; вернуть код завершения."""
-    if args.repo_mode == REPO_MODE_TEST:
-        print("Ошибка: режим test будет добавлен на этапе 3", file=sys.stderr)
-        return EXIT_ERROR
+    """Построить и вывести граф зависимостей; вернуть код завершения."""
     try:
-        dependencies = pypi.get_dependencies(args.repo, args.package)
+        builder = GraphBuilder(make_source(args), args.depth, args.filter)
+        graph = builder.build(args.package)
     except pypi.RepoError as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return EXIT_ERROR
-    print_dependencies(args.package, dependencies)
+    print_graph(args.package, graph, builder.cycles)
     return EXIT_OK
 
 
 def main(argv=None):
-    """Точка входа: разобрать, проверить параметры и получить данные."""
+    """Точка входа: разобрать и проверить параметры, построить граф."""
     args = build_parser().parse_args(argv)
     try:
         validate_config(args)
