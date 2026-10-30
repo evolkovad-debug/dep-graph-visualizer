@@ -1,0 +1,12 @@
+@startuml
+skinparam shadowing false
+title Dependencies of A
+rectangle "A" as n0 #LightBlue
+rectangle "B" as n1
+rectangle "C" as n2
+rectangle "D" as n3
+n0 --> n1
+n1 --> n2
+n2 --> n0
+n2 --> n3
+@enduml

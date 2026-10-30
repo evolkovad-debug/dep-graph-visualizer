@@ -1,0 +1,24 @@
+@startuml
+skinparam shadowing false
+title Dependencies of flask
+rectangle "flask" as n0 #LightBlue
+rectangle "blinker" as n1
+rectangle "click" as n2
+rectangle "importlib-metadata" as n3
+rectangle "zipp" as n4
+rectangle "itsdangerous" as n5
+rectangle "jinja2" as n6
+rectangle "MarkupSafe" as n7
+rectangle "markupsafe" as n8
+rectangle "werkzeug" as n9
+n0 --> n1
+n0 --> n2
+n0 --> n3
+n0 --> n5
+n0 --> n6
+n0 --> n8
+n0 --> n9
+n3 --> n4
+n6 --> n7
+n9 --> n8
+@enduml
