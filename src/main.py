@@ -6,14 +6,13 @@ import os
 import re
 import sys
 
-from src import pypi, testrepo
+from src import plantuml, pypi, testrepo
 from src.graph import GraphBuilder
 
 EXIT_OK = 0
 EXIT_ERROR = 1
 MIN_DEPTH = 0
 DEFAULT_DEPTH = 3
-DEFAULT_OUTPUT = "graph.svg"
 OUTPUT_EXTENSION = ".svg"
 REPO_MODE_ONLINE = "online"
 REPO_MODE_TEST = "test"
@@ -43,8 +42,8 @@ def build_parser():
         help="режим работы с репозиторием: online (URL) или test (файл)",
     )
     parser.add_argument(
-        "--output", default=DEFAULT_OUTPUT,
-        help="имя файла с изображением графа (.svg)",
+        "--output", default=None,
+        help="имя SVG-файла; если не задан, изображение не создаётся",
     )
     parser.add_argument(
         "--depth", type=int, default=DEFAULT_DEPTH,
@@ -73,7 +72,9 @@ def validate_repo(repo, repo_mode):
 
 
 def validate_output(output):
-    """Проверить имя выходного файла."""
+    """Проверить имя выходного файла (если он задан)."""
+    if output is None:
+        return
     if not output.lower().endswith(OUTPUT_EXTENSION):
         raise ConfigError("имя выходного файла должно заканчиваться на .svg")
     folder = os.path.dirname(output)
@@ -119,15 +120,35 @@ def print_graph(package, graph, cycles):
         print("  " + " -> ".join(cycle))
 
 
+def output_results(args, graph):
+    """Сохранить диаграмму PlantUML и SVG, если задан параметр --output."""
+    if args.output is None:
+        return
+    diagram = plantuml.build_diagram(args.package, graph)
+    puml_path = os.path.splitext(args.output)[0] + ".puml"
+    plantuml.write_file(puml_path, diagram.encode("utf-8"))
+    print("Диаграмма PlantUML:")
+    print(diagram)
+    print(f"Диаграмма сохранена: {puml_path}")
+    try:
+        svg = plantuml.render_svg(diagram)
+    except plantuml.RenderError as error:
+        message = f"{error}; текст диаграммы сохранён в {puml_path}"
+        raise plantuml.RenderError(message) from error
+    plantuml.write_file(args.output, svg)
+    print(f"Изображение сохранено: {args.output}")
+
+
 def run(args):
-    """Построить и вывести граф зависимостей; вернуть код завершения."""
+    """Построить граф, вывести его и сохранить изображение."""
     try:
         builder = GraphBuilder(make_source(args), args.depth, args.filter)
         graph = builder.build(args.package)
-    except pypi.RepoError as error:
+        print_graph(args.package, graph, builder.cycles)
+        output_results(args, graph)
+    except (pypi.RepoError, plantuml.RenderError) as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return EXIT_ERROR
-    print_graph(args.package, graph, builder.cycles)
     return EXIT_OK
 
 
